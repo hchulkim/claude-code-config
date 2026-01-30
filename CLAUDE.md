@@ -97,27 +97,20 @@ mpl.rcParams.update({
 - Each data input: add brief comment describing it
 
 ## Tables Output
-- Default: `modelsummary` (R) with appropriate output format
+- Default: `modelsummary` (R) or `kableExtra` (R) with appropriate output format
 - For LaTeX: use `output = "latex"` or `etable` from `fixest`
 - For Word/HTML: use `kableExtra` formatting
+- Make sure you remove `\begin{table}` `\end{Table}` so that you can import the tex file into the table setting in LaTeX
 - Include standard errors, significance stars, observation counts
 
 ## Figures Output  
-- Save as both `.pdf` (for LaTeX) and `.png` (for drafts)
+- Save as `.png`
 - Use consistent color palette across project
-- Minimal themes: `theme_minimal()` or custom clean theme
+- Minimal themes: `theme_bw()` or custom clean theme
 - Label axes clearly, include units
 
-## Server Environment (if applicable)
-- Laptop home: `/home/j/`
-- Server (Deloach) home: `/home/jsayre/`
-- Server Python: use conda env `mpc_env`
-- Server: NO sudo, NO apt install
-
 ## Git Practices
-- Commits: brief, no authorship info
-- Branch naming: `feature/description` or `fix/description`
-- Before pushing: ensure code runs without errors
+- `.gitignore` file: Add `data`, `output` folders and also add `result` folder.
 
 ## Replication Package Checklist
 When preparing for replication:
