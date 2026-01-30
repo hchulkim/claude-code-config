@@ -96,6 +96,34 @@ etable(est1, est2, est3,
   tex = TRUE,
   file = here("output", "tables", "results.tex")
 )
+
+# example
+etable(
+    m1.suit, m2.suit,
+    dict = c(
+        'gruter_1' = 'Gruter Suitability 1',
+        'gruter_2' = 'Gruter Suitability 2',
+        'gruter_3' = 'Gruter Suitability 3',
+        'gruter_4' = 'Gruter Suitability 4',
+        'area_ha' = 'Orchard Size (ha)',
+        'yield' = 'Yield (kg/ha), 2023'
+    ),
+    extralines = list(
+        '_Average yield (kg/ha)' = c(
+            round(mean(yields[area_ha > 1 & year == 2023, yield], na.rm = TRUE), 2),
+            round(mean(yields[area_ha > 1 & year == 2023, yield], na.rm = TRUE), 2)
+        ),
+        '_Average orchard size (ha)' = c(
+            round(mean(yields[area_ha > 1 & year == 2023, area_ha], na.rm = TRUE), 2),
+            round(mean(yields[area_ha > 1 & year == 2023, area_ha], na.rm = TRUE), 2)
+        )
+    ),
+    tex = TRUE,
+    style.tex = style.tex('aer'),
+    digits = 3,
+    depvar = TRUE
+)
+
 ```
 
 ## Figures
@@ -108,7 +136,7 @@ ggplot(coef_data, aes(x = term, y = estimate)) +
   geom_point() +
   geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
   geom_hline(yintercept = 0, linetype = "dashed") +
-  theme_minimal() +
+  theme_bw() +
   labs(x = "Period", y = "Coefficient")
 
 ggsave(here("output", "figures", "event_study.pdf"), width = 8, height = 5)
