@@ -22,7 +22,7 @@ project-folder/
 `CLAUDE.md` includes your original style preferences plus:
 
 * Aligned variable assignment formatting
-* Publication-quality `matplotlib` settings (pgf/LaTeX)
+* Publication-quality (pdf/LaTeX)
 * Julia optimization tips (views, preallocations, broadcasting)
 * Server environment handling (Deloach)
 
