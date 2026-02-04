@@ -281,9 +281,112 @@ project-name/
 │   └── paper/        # Quarto/LaTeX paper files
 ├── _extensions/      # Quarto extensions (aea template)
 ├── .here             # Project root marker
+├── Dockerfile        # Docker-based replication (Nix bootstrapped inside)
 ├── Makefile          # Build automation
 └── generate_env.R    # rix/nix environment setup
 ```
+
+## Package Environment (rix / Nix)
+
+### Non-Negotiable Rules
+- **Never install packages globally** (no `install.packages()`, `pip install`, etc. outside of Nix).
+- **Always enter `nix-shell`** before running any R, Python, or Julia code in this project.
+- All package dependencies must be declared in `generate_env.R` using the `rix` R package so that the environment is fully reproducible via Nix.
+- **Never run Docker commands** (`docker build`, `docker run`, etc.). The Dockerfile is scaffolded for the user's later use (replication packages, journal submission). Day-to-day work uses `nix-shell` only.
+
+### Environment Setup with `rix`
+Every project must have a `generate_env.R` at the root that defines the Nix environment. Example:
+```r
+library(rix)
+
+rix(
+  r_ver   = "latest",
+  r_pkgs  = c("data.table", "fixest", "ggplot2", "modelsummary",
+               "kableExtra", "here", "sf"),
+  system_pkgs = c("quarto"),       # non-R system dependencies
+  ide         = "other",           # "other" for CLI / Claude Code usage
+  project_path = ".",
+  overwrite    = TRUE
+)
+```
+- Run `Rscript generate_env.R` once (from a system R that has `rix` installed) to produce `default.nix`.
+- After that, all work happens inside `nix-shell` (or `nix-shell --pure` for strict isolation).
+
+### Workflow for the AI Agent
+1. **Before writing or running any code**, execute `nix-shell` in the project root to enter the reproducible environment.
+2. **Adding a new package**: edit `generate_env.R` to include the package, re-run `Rscript generate_env.R`, then re-enter `nix-shell`. Never use `install.packages()` or equivalent.
+3. **Verification**: confirm the environment works by running `R -e "library(<pkg>)"` inside `nix-shell` for any newly added package.
+4. **Commit `generate_env.R` and `default.nix`** to version control so collaborators and replication reviewers can reproduce the environment exactly.
+
+### Docker-Based Replication (Scaffolding Only -- Do Not Run)
+The Dockerfile below is included in every project for the user to run later when preparing replication packages or journal submissions. **The AI agent must never execute `docker build`, `docker run`, or any Docker commands.** It only needs to keep the Dockerfile in sync when project structure changes (e.g., updating `generate_env.R`). Every project should include a `Dockerfile` at the root:
+```dockerfile
+FROM ubuntu:latest
+
+RUN apt update -y
+
+RUN apt install curl -y
+
+# Bootstrap rix by downloading the default.nix that ships with {rix}
+RUN curl -O https://raw.githubusercontent.com/ropensci/rix/main/inst/extdata/default.nix
+
+# Copy the rix environment definition
+COPY generate_env.R .
+
+# Copy all project files into the image
+COPY . .
+
+# Install Nix via the Determinate Systems installer
+RUN curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install linux \
+  --extra-conf "sandbox = false" \
+  --init none \
+  --no-confirm
+
+# Add Nix to PATH
+ENV PATH="${PATH}:/nix/var/nix/profiles/default/bin"
+ENV user=root
+
+# Configure rstats-on-nix binary cache (avoids compiling from source)
+RUN mkdir -p /root/.config/nix && \
+    echo "substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org" > /root/.config/nix/nix.conf && \
+    echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=" >> /root/.config/nix/nix.conf
+
+# Generate the Nix expression from generate_env.R, then build the environment
+RUN nix-shell --run "Rscript generate_env.R"
+RUN nix-build
+
+# Create shared folder for output
+RUN mkdir -p shared_folder
+
+# Run the full pipeline via Makefile inside the Nix environment
+RUN nix-shell --run "make all"
+
+# Move results to shared folder on container start
+CMD ["sh", "-c", "mv output/* shared_folder/"]
+```
+
+**Building and running the replication container:**
+```bash
+# Build the image
+docker build -t project-replication .
+
+# Run and extract results to a local folder
+docker run -v $(pwd)/results:/shared_folder project-replication
+```
+
+**Key points:**
+- The Dockerfile bootstraps Nix without requiring Nix on the host machine -- only Docker is needed.
+- The `rstats-on-nix.cachix.org` binary cache is configured so precompiled packages are downloaded rather than compiled from source.
+- `nix-shell --run "make all"` executes the entire pipeline inside the pinned environment.
+- Output is copied to `shared_folder/` which can be volume-mounted to the host.
+
+### Why This Matters
+- `install.packages()` is non-reproducible: versions drift, CRAN snapshots change, system libraries differ across machines.
+- Nix pins every dependency (R version, package versions, system libraries) to a specific nixpkgs revision, guaranteeing identical builds on any machine.
+- Docker + Nix provides a two-layer guarantee: Docker ensures the OS layer is reproducible, Nix ensures the R/package layer is reproducible.
+- This is required for DCAS-compliant replication packages and journal submissions.
+
+---
 
 ## Language-Specific Style
 
@@ -374,9 +477,11 @@ mpl.rcParams.update({
 When preparing for replication:
 1. Use `rix` for R environment management (Nix-based)
 2. Include `generate_env.R` with package specifications
-3. Create `Makefile` with full pipeline
-4. Document all data sources in README
-5. Verify: `nix-build` then `nix-shell` should reproduce environment
+3. Include `Dockerfile` for containerized replication (Nix bootstrapped inside Docker)
+4. Create `Makefile` with full pipeline
+5. Document all data sources in README
+6. Local verification: `nix-build` then `nix-shell` should reproduce environment
+7. Docker verification: `docker build -t replication .` then `docker run -v $(pwd)/results:/shared_folder replication` should reproduce all outputs
 
 ## Quarto Papers
 - Use `hchulkim/econ-paper-template` for AEA-style formatting
